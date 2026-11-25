@@ -36,6 +36,7 @@ import constants
 import templates
 import chronos.manager
 import common_utils
+import project_onboarding
 
 # Forward reference common functions. We do this because they are used
 # throughout the infra and to avoid breakages we declare them here.
@@ -124,6 +125,8 @@ def main():  # pylint: disable=too-many-branches,too-many-return-statements
   # TODO(https://github.com/google/oss-fuzz/issues/6758): Get rid of chdir.
   if hasattr(args, 'testcase_path'):
     args.testcase_path = _get_absolute_path(args.testcase_path)
+  if getattr(args, 'target', None) and os.path.exists(args.target):
+    args.target = _get_absolute_path(args.target)
   # Note: this has to happen after parse_args above as parse_args needs to know
   # the original CWD for external projects.
   os.chdir(common_utils.OSS_FUZZ_DIR)
@@ -132,7 +135,8 @@ def main():  # pylint: disable=too-many-branches,too-many-return-statements
 
   # We have different default values for `sanitizer` depending on the `engine`.
   # Some commands do not have `sanitizer` argument, so `hasattr` is necessary.
-  if hasattr(args, 'sanitizer') and not args.sanitizer:
+  if (hasattr(args, 'sanitizer') and not args.sanitizer and
+      hasattr(args, 'project')):
     if args.project.language == 'javascript':
       args.sanitizer = 'none'
     else:
@@ -140,6 +144,17 @@ def main():  # pylint: disable=too-many-branches,too-many-return-statements
 
   if args.command == 'generate':
     result = generate(args)
+  elif args.command in ('validate-config', 'validate', 'validate-project',
+                        'validate_project', 'validate_config', 'lint-config',
+                        'lint-project', 'lint_project', 'check-config',
+                        'check-project', 'check_project', 'check_project_yaml',
+                        'doctor'):
+    result = validate_config(args)
+  elif args.command in ('generate-repro', 'generate_repro', 'gen-repro',
+                        'repro-script', 'reproduce-script',
+                        'generate-local-repro', 'generate-reproduce-script',
+                        'generate_reproduction_script', 'local-repro'):
+    result = generate_repro(args)
   elif args.command == 'build_image':
     result = build_image(args)
   elif args.command == 'build_fuzzers':
@@ -229,6 +244,70 @@ def get_parser():  # pylint: disable=too-many-statements,too-many-locals
                                choices=LANGUAGE_TO_BASE_BUILDER_IMAGE.keys(),
                                help='Project language.')
   _add_external_project_args(generate_parser)
+
+  validate_config_parser = subparsers.add_parser(
+      'validate-config',
+      aliases=[
+          'validate', 'validate-project', 'validate_project', 'validate_config',
+          'lint-config', 'lint-project', 'lint_project', 'check-config',
+          'check-project', 'check_project', 'check_project_yaml', 'doctor'
+      ],
+      help='Statically validate project.yaml and onboarding files.')
+  validate_config_parser.add_argument(
+      'target',
+      help='Project name, project directory, or path to project.yaml.')
+  validate_config_parser.add_argument(
+      '--strict',
+      action='store_true',
+      help='Treat build-file readiness warnings as errors.')
+  validate_config_parser.add_argument('--json',
+                                      action='store_true',
+                                      help='Print validation result as JSON.')
+  _add_external_project_args(validate_config_parser)
+
+  generate_repro_parser = subparsers.add_parser(
+      'generate-repro',
+      aliases=[
+          'generate_repro', 'gen-repro', 'repro-script', 'reproduce-script',
+          'generate-local-repro', 'generate-reproduce-script', 'local-repro',
+          'generate_reproduction_script'
+      ],
+      help='Generate a minimal local build-and-reproduce shell script.')
+  generate_repro_parser.add_argument(
+      'target',
+      help='Project name, project directory, or path to project.yaml.')
+  generate_repro_parser.add_argument('output_path',
+                                     nargs='?',
+                                     help='Optional output script path.')
+  generate_repro_parser.add_argument('-o',
+                                     '--output',
+                                     '--output-file',
+                                     '--out',
+                                     '--script-path',
+                                     dest='output',
+                                     help='Output script path.')
+  generate_repro_parser.add_argument('--fuzzer',
+                                     help='Default fuzz target name.')
+  generate_repro_parser.add_argument('--testcase',
+                                     help='Default crash testcase path.')
+  generate_repro_parser.add_argument('--source',
+                                     help='Local source directory to mount.')
+  _add_engine_args(generate_repro_parser)
+  _add_sanitizer_args(generate_repro_parser)
+  _add_architecture_args(generate_repro_parser)
+  generate_repro_parser.add_argument(
+      '--strict',
+      action='store_true',
+      help='Treat build-file readiness warnings as validation errors.')
+  generate_repro_parser.add_argument(
+      '--force',
+      action='store_true',
+      help='Generate a script even if validation reports errors.')
+  generate_repro_parser.add_argument('--json',
+                                     action='store_true',
+                                     help='Print validation result as JSON.')
+  _add_external_project_args(generate_repro_parser)
+  generate_repro_parser.set_defaults(engine=None, architecture=None)
 
   build_image_parser = subparsers.add_parser('build_image',
                                              help='Build an image.')
@@ -1551,6 +1630,16 @@ def _validate_language(language):
     return False
 
   return True
+
+
+def validate_config(args):
+  """Validates a project.yaml configuration before an expensive build."""
+  return project_onboarding.validate_cli(args)
+
+
+def generate_repro(args):
+  """Generates a minimal local reproduction script after validation."""
+  return project_onboarding.generate_repro_cli(args)
 
 
 def _create_build_integration_directory(directory):

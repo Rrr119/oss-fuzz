@@ -1,0 +1,17 @@
+{
+  "root": "/home/dev/feedback/uid38851",
+  "B": "/home/dev/feedback/uid38851",
+  "sha": "e613d5eacb8fa9e30937b542ac42ceb67063a030",
+  "wslDistro": "Ubuntu-26.04",
+  "source": {
+    "owner": "google",
+    "repo": "oss-fuzz",
+    "sha": "e613d5eacb8fa9e30937b542ac42ceb67063a030"
+  },
+  "fork": {
+    "owner": "Rrr119",
+    "repo": "oss-fuzz",
+    "cloneUrl": "https://github.com/Rrr119/oss-fuzz.git"
+  },
+  "at": "2026-11-25T22:45:07.626Z"
+}

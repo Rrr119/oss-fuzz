@@ -80,6 +80,11 @@ class Project:
       self.name = os.path.basename(self.path)
       self.build_integration_path = os.path.join(self.path,
                                                  build_integration_path)
+      # Accept both ClusterFuzzLite's .clusterfuzzlite/ layout and a direct
+      # OSS-Fuzz-style directory that contains project.yaml/Dockerfile/build.sh.
+      if (not os.path.isdir(self.build_integration_path) and
+          os.path.exists(os.path.join(self.path, 'project.yaml'))):
+        self.build_integration_path = self.path
     else:
       self.name = project_name_or_path
       self.path = os.path.join(OSS_FUZZ_DIR, 'projects', self.name)
